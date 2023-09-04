@@ -202,7 +202,8 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
             .await?;
         // info!("Set TX write ptr");
         self.command(Command::Send).await?;
-        info!("TX: after Command: SEND");
+        #[cfg(feature = "defmt")]
+        defmt::info!("TX: after Command: SEND");
         Ok(frame.len())
     }
 
