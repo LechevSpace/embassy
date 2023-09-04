@@ -13,6 +13,7 @@ enum Command {
 
 #[repr(u8)]
 enum Interrupt {
+    SendOk = 0b10000_u8,
     Receive = 0b00100_u8,
 }
 
@@ -137,6 +138,8 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
     /// Read an ethernet frame from the device. Returns the number of bytes read.
     pub async fn read_frame(&mut self, frame: &mut [u8]) -> Result<usize, SPI::Error> {
         let rx_size = self.get_rx_size().await? as usize;
+        #[cfg(feature = "defmt")]
+        defmt::info!("RX packets size: {} bytes", rx_size);
         if rx_size == 0 {
             return Ok(0);
         }
@@ -156,6 +159,9 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
         self.read_bytes(&mut read_ptr, &mut frame[..expected_frame_size])
             .await?;
 
+        #[cfg(feature = "defmt")]
+        defmt::info!("{=[u8]:X}", frame[..expected_frame_size]);
+
         // Register RX as completed
         self.set_rx_read_ptr(read_ptr).await?;
         self.command(Command::Receive).await?;
@@ -165,11 +171,22 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
 
     /// Write an ethernet frame to the device. Returns number of bytes written
     pub async fn write_frame(&mut self, frame: &[u8]) -> Result<usize, SPI::Error> {
+        #[cfg(feature = "defmt")]
+        defmt::info!("TX: before free size; frame.len(): {}", frame.len());
+        let free_size = self.get_tx_free_size().await?;
+        #[cfg(feature = "defmt")]
+        defmt::info!("TX: free size {}", free_size);
         while self.get_tx_free_size().await? < frame.len() as u16 {}
+        #[cfg(feature = "defmt")]
+        defmt::info!("TX: Writing frame to TX");
+        // info!("before getting tx write ptr");
         let write_ptr = self.get_tx_write_ptr().await?;
+        // info!("got tx write ptr");
 
         if C::AUTO_WRAP {
+            // info!("prepare for bus write");
             self.bus_write(C::tx_addr(write_ptr), frame).await?;
+            // info!("wrote frame to bus");
         } else {
             let addr = write_ptr % C::BUF_SIZE;
             if addr as usize + frame.len() <= C::BUF_SIZE as usize {
@@ -183,7 +200,9 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
 
         self.set_tx_write_ptr(write_ptr.wrapping_add(frame.len() as u16))
             .await?;
+        // info!("Set TX write ptr");
         self.command(Command::Send).await?;
+        info!("TX: after Command: SEND");
         Ok(frame.len())
     }
 

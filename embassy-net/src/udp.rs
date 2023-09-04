@@ -152,6 +152,8 @@ impl<'a> UdpSocket<'a> {
             // Entire datagram has been sent
             Ok(()) => Poll::Ready(Ok(())),
             Err(udp::SendError::BufferFull) => {
+                #[cfg(feature = "defmt")]
+                info!("Buffer full");
                 s.register_send_waker(cx.waker());
                 Poll::Pending
             }
