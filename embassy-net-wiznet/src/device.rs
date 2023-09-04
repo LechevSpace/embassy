@@ -159,8 +159,8 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
         self.read_bytes(&mut read_ptr, &mut frame[..expected_frame_size])
             .await?;
 
-        #[cfg(feature = "defmt")]
-        defmt::info!("{=[u8]:X}", frame[..expected_frame_size]);
+        // #[cfg(feature = "defmt")]
+        // defmt::info!("{=[u8]:X}", frame[..expected_frame_size]);
 
         // Register RX as completed
         self.set_rx_read_ptr(read_ptr).await?;
@@ -173,6 +173,12 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
     pub async fn write_frame(&mut self, frame: &[u8]) -> Result<usize, SPI::Error> {
         #[cfg(feature = "defmt")]
         defmt::info!("TX: before free size; frame.len(): {}", frame.len());
+
+        // if frame.len() == 42 {
+        #[cfg(feature = "defmt")]
+        defmt::info!("{=[u8]:X}", frame);
+        // }
+
         let free_size = self.get_tx_free_size().await?;
         #[cfg(feature = "defmt")]
         defmt::info!("TX: free size {}", free_size);
