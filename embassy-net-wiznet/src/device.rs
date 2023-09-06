@@ -41,6 +41,14 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
         // Enable receive interrupt
         this.bus_write(C::SOCKET_INTR_MASK, &[Interrupt::Receive as u8]).await?;
 
+        // Set lower retry time value (for ARP request/responses)
+        // default is 2000 or 200 ms
+        // set to 2 ms (20 * 100 us)
+        // this.bus_write(C::COMMON_RETRY_TIME_VALUE, &20_u16.to_be_bytes())
+        //     .await?;
+        // // no retries
+        // this.bus_write(C::COMMON_RETRY_COUNT, &[0]).await?;
+
         // Set MAC address
         this.bus_write(C::COMMON_MAC, &mac_addr).await?;
 
@@ -138,8 +146,8 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
     /// Read an ethernet frame from the device. Returns the number of bytes read.
     pub async fn read_frame(&mut self, frame: &mut [u8]) -> Result<usize, SPI::Error> {
         let rx_size = self.get_rx_size().await? as usize;
-        #[cfg(feature = "defmt")]
-        defmt::info!("RX packets size: {} bytes", rx_size);
+        // #[cfg(feature = "defmt")]
+        // defmt::info!("RX packets size: {} bytes", rx_size);
         if rx_size == 0 {
             return Ok(0);
         }
@@ -171,20 +179,20 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
 
     /// Write an ethernet frame to the device. Returns number of bytes written
     pub async fn write_frame(&mut self, frame: &[u8]) -> Result<usize, SPI::Error> {
-        #[cfg(feature = "defmt")]
-        defmt::info!("TX: before free size; frame.len(): {}", frame.len());
+        // #[cfg(feature = "defmt")]
+        // defmt::info!("TX: before free size; frame.len(): {}", frame.len());
 
-        // if frame.len() == 42 {
-        #[cfg(feature = "defmt")]
-        defmt::info!("{=[u8]:X}", frame);
+        // #[cfg(feature = "defmt")]
+        // if frame.len() != 170 {
+        //     defmt::info!("{=[u8]:X}", frame);
         // }
 
         let free_size = self.get_tx_free_size().await?;
-        #[cfg(feature = "defmt")]
-        defmt::info!("TX: free size {}", free_size);
-        while self.get_tx_free_size().await? < frame.len() as u16 {}
-        #[cfg(feature = "defmt")]
-        defmt::info!("TX: Writing frame to TX");
+        // #[cfg(feature = "defmt")]
+        // defmt::info!("TX: free size {}", free_size);
+        while free_size < frame.len() as u16 {}
+        // #[cfg(feature = "defmt")]
+        // defmt::info!("TX: Writing frame to TX");
         // info!("before getting tx write ptr");
         let write_ptr = self.get_tx_write_ptr().await?;
         // info!("got tx write ptr");
@@ -209,7 +217,11 @@ impl<C: Chip, SPI: SpiDevice> WiznetDevice<C, SPI> {
         // info!("Set TX write ptr");
         self.command(Command::Send).await?;
         #[cfg(feature = "defmt")]
-        defmt::info!("TX: after Command: SEND");
+        defmt::info!(
+            "TX: after Command: SEND {}; {}",
+            embassy_time::Instant::now().as_micros(),
+            frame.len()
+        );
         Ok(frame.len())
     }
 
